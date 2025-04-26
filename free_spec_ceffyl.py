@@ -6,6 +6,7 @@ from libstempo import spharmORFbasis as anis
 import glob
 import sys
 import math
+import os
 import json
 import scipy.interpolate as interp
 from enterprise.signals import gp_signals
@@ -46,7 +47,7 @@ for p, t in zip(parfiles, timfiles):
     psr = Pulsar(p, t, ephem=ephemeris)
     psrs.append(psr)
     
-os.sys("mkdir " + datadir_out)    
+os.system("mkdir " + datadir_out)    
  
 #checking that generation went well    
 for j in psrs:
