@@ -1,0 +1,15 @@
+Date created:time.struct_time(tm_year=2025, tm_mon=4, tm_mday=26, tm_hour=18, tm_min=46, tm_sec=10, tm_wday=5, tm_yday=116, tm_isdst=1)
+la-forge cores: ['spec_ceffl/forg_dat.core']
+KDE function: FFTKDE
+KDE kernel choice: epanechnikov
+Bandwidth choice: <function sj at 0x7410fe7768b0>
+Bandwidth values: [0.01085233 0.0065513  0.00445903 0.00378124 0.00424928 0.00541664
+ 0.01187714 0.01644487 0.01401726 0.04135451 0.01645481 0.0150052
+ 0.01224346 0.01268712 0.01515406 0.01463706 0.00965477 0.01438368
+ 0.009915   0.01299274 0.01033193 0.01416602 0.01347703 0.01704078
+ 0.01263762 0.0161422  0.01468162 0.01452007 0.00876068 0.00975502]
+log10rho grid: [-1.550e+01 -1.549e+01 -1.548e+01 ... -2.000e-02 -1.000e-02  0.000e+00]
+Thin chain for KDE? False
+Thin chain for bandwidth? False
+Bootstrap? False
+Number of bootstrapped samples: None
