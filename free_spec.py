@@ -84,7 +84,7 @@ pta = signal_base.PTA([s(p) for p in psrs])
 
 def run_sampler(pta, iter_num, outdir = ''):
 
-    N = int(iter_num)                                    # number of samples
+    N = int(iter_num)                              # number of samples
     x0 = np.hstack(p.sample() for p in pta.params)  # initial parameter vector
     ndim = len(x0)                                  # number of dimensions
     print('x0 =', x0)
@@ -135,6 +135,12 @@ burn = int(0.3*chain.shape[0])
 #                      plot_contours=False,fill_contours=False,
 #                      show_titles = True, use_math_text=True, verbose=True)
 
-#fs = (np.arange(comp) + 1) / Tspan
-#parts = plt.violinplot(
-#    chain[burn:,:-4], positions=fs, widths=0.07*fs)
+fs = (np.arange(comp) + 1) / Tspan
+parts = plt.violinplot(
+    chain[burn:,:-4], positions=fs, widths=0.07*fs)
+plt.savefig(datadir_out + "violin.png", dpi=300)
+
+#calculating 1-sigma uncertainties
+std_lst = np.std(chain[burn:,:-4], axis=0)
+mn_lst = np.mean(chain[burn:,:-4], axis=0)
+np.savetxt(datadir_out + "free_spec.txt", np.vstack((fs, mn_lst, std_lst)).T)
