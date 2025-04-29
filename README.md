@@ -2,7 +2,7 @@
 Creating free spectrum from par and tim files. Prepare the input datafile for ceffyl
 Usage
 -to create free spectrum
-python free_spec_ceffyl.py epta_sim/ 30 1000000 report_sim/
+python free_spec.py epta_sim/ 30 1000000 report_sim/
 
 epta_sim is the input directory with par and tim files
 30 is the number of frequency components
