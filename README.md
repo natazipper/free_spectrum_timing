@@ -15,3 +15,10 @@ python ceffyl_file.py epta_sim/ 30 report_sim/ spec_ceffl/
 epta_sim is the input directory with par and tim files
 30 is the number of frequency components
 spec_ceffyl is the output directory for the ceffyl input files
+
+-produce frequency resolved optimal statistics
+python single_bin_snr.py epta_sim/ report_sim/ 30
+
+epta_sim is the input folder with par and tim files
+report_sim is the folder with the chain of the free spectrum
+30 is the number of freuquency components (should coincide with the the number of components of the free spectrum)
