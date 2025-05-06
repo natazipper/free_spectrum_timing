@@ -761,9 +761,9 @@ def common_red_noise_block(psd='powerlaw', prior='log-uniform',
 
         # checking if priors specified, otherwise give default values
         if logmin is None:
-            logmin = -9
+            logmin = -18
         if logmax is None:
-            logmax = -4
+            logmax = -2
 
         if prior == 'uniform':
             log10_rho_gw = parameter.LinearExp(logmin, logmax,
