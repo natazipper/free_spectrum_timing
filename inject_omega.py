@@ -15,6 +15,7 @@ import blocks_new as blocks
 #from enterprise_extensions import blocks
 import dynesty
 from enterprise.signals import signal_base
+import enterprise.constants as const
 from enterprise.pulsar import Pulsar, Tempo2Pulsar
 from enterprise_extensions.frequentist import optimal_statistic as opt_stat
 import enterprise.signals.parameter as parameter
@@ -297,7 +298,7 @@ for ii in range(0,Npsr):
 
     # years of observations>
     psr = LT.fakepulsar(parfile=parfiles[ii],
-            obstimes=np.arange(53000,53000+10*365.25,28.), toaerr=0.1)
+            obstimes=np.arange(53000,53000+10*365.25,28.), toaerr=0.01)
 
     # We now remove the computed residuals from the TOAs, obtaining (in effect) a perfect realization of the deterministic timing model. The pulsar parameters will have changed somewhat, so `make_ideal` calls `fit()` on the pulsar object.
     LT.make_ideal(psr)
@@ -313,11 +314,12 @@ for ii in range(0,Npsr):
 #make spectrum
 #define the spectrum
 
-r = 10**(-13.1)
-nt = 2.4
-fstar = 7.7*1e-17
+#r = 10**(-13.1)
+#nt = 2.4
+#fstar = 7.7*1e-17
 freq = createFreq(psrs, howml=howml)
-spec = 6e-15*(r/0.032)*(freq/fstar)**nt
+#spec = 6e-15*(r/0.032)*(freq/fstar)**nt
+spec = 1e-9 * (freq/const.fyr)*10
 
 #spec = 1e-50*np.ones(len(freq))
 #spec[2*howml] = 3e-5*np.ones(1)
@@ -326,7 +328,7 @@ userSpec = np.asarray([freq, spec]).T
 #userSpec is in Omega_GW units; freq, spec
 
 #createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec)
-createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=True)
+createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=False)
 
 #for Psr in psrs:
 
@@ -356,13 +358,13 @@ Tspan = model_utils.get_tspan(Psrs)
 
 # Here we build the signal model
 # First we add the timing model
-#s = gp_signals.TimingModel()
+s = gp_signals.TimingModel()
 
 # Then we add the white noise
 # We use different white noise parameters for every backend/receiver combination
 # The white noise parameters are held constant
 efac = parameter.Constant(1.0)
-s = white_signals.MeasurementNoise(efac=efac)
+s += white_signals.MeasurementNoise(efac=efac)
 
 # Finally, we add the common red noise, which is modeled as a Fourier series with 30 frequency components
 # The common red noise has a power-law PSD with spectral index of 4.33
@@ -426,13 +428,14 @@ burn = int(0.3*chain.shape[0])
 #                      plot_contours=False,fill_contours=False,
 #                      show_titles = True, use_math_text=True, verbose=True)
 
-fs = (np.arange(comp) + 2) / Tspan
+fs = (np.arange(comp) + 1.5) / Tspan
 parts = plt.violinplot(
     chain[burn:,:-4], positions=fs, widths=0.07*fs)
 plt.plot(freq, np.log10(spec))
 plt.xscale("log")
-plt.xlim(1e-8, 1e-7)
+plt.xlim(3e-9, 1e-7)
 plt.savefig(datadir_out + "violin.png", dpi=300)
+plt.clf()
 
 #calculating 1-sigma uncertainties
 std_lst = np.std(chain[burn:,:-4], axis=0)
