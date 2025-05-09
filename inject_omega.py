@@ -298,7 +298,7 @@ for ii in range(0,Npsr):
 
     # years of observations>
     psr = LT.fakepulsar(parfile=parfiles[ii],
-            obstimes=np.arange(53000,53000+10*365.25,28.), toaerr=0.01)
+            obstimes=np.arange(53000,53000+20*365.25,28.), toaerr=0.1)
 
     # We now remove the computed residuals from the TOAs, obtaining (in effect) a perfect realization of the deterministic timing model. The pulsar parameters will have changed somewhat, so `make_ideal` calls `fit()` on the pulsar object.
     LT.make_ideal(psr)
@@ -319,7 +319,7 @@ for ii in range(0,Npsr):
 #fstar = 7.7*1e-17
 freq = createFreq(psrs, howml=howml)
 #spec = 6e-15*(r/0.032)*(freq/fstar)**nt
-spec = 1e-9 * (freq/const.fyr)*10
+spec = 1e-7 * (freq/const.fyr)*10
 
 #spec = 1e-50*np.ones(len(freq))
 #spec[2*howml] = 3e-5*np.ones(1)
@@ -328,7 +328,7 @@ userSpec = np.asarray([freq, spec]).T
 #userSpec is in Omega_GW units; freq, spec
 
 #createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec)
-createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=False)
+createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=True)
 
 #for Psr in psrs:
 
@@ -348,6 +348,7 @@ createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=False
 
 Psrs = []
 for ii in psrs:
+#    ii.fit()
     psr = Tempo2Pulsar(ii)
     Psrs.append(psr)
     
@@ -374,6 +375,13 @@ s += blocks.common_red_noise_block(psd='spectrum', prior='log-uniform', Tspan=Ts
 
 # We set up the PTA object using the signal we defined above and the pulsars
 pta = signal_base.PTA([s(p) for p in Psrs])
+
+#for Psr in psrs:
+    
+#    Psr.fit()
+#    Psr.savepar("epta_sim_1/" + Psr.name + '.par')
+#    Psr.savetim("epta_sim_1/" + Psr.name + '.tim')
+#    T.purgetim("epta_sim_1/" + Psr.name + '.tim')
 
 def run_sampler(pta, iter_num, outdir = ''):
 
@@ -433,7 +441,8 @@ parts = plt.violinplot(
     chain[burn:,:-4], positions=fs, widths=0.07*fs)
 plt.plot(freq, np.log10(spec))
 plt.xscale("log")
-plt.xlim(3e-9, 1e-7)
+plt.xlim(1e-9, 1e-7)
+plt.ylim(-10, -3)
 plt.savefig(datadir_out + "violin.png", dpi=300)
 plt.clf()
 

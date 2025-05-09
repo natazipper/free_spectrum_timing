@@ -136,7 +136,7 @@ burn = int(0.3*chain.shape[0])
 #                      plot_contours=False,fill_contours=False,
 #                      show_titles = True, use_math_text=True, verbose=True)
 
-fs = (np.arange(comp) + 2) / Tspan
+fs = (np.arange(comp) + 1.5) / Tspan
 parts = plt.violinplot(
     chain[burn:,:-4], positions=fs, widths=0.07*fs)
 plt.xscale("log")
