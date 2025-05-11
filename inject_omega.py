@@ -33,6 +33,8 @@ comp = int(sys.argv[2])
 iter_num = int(sys.argv[3])
 #output directory
 datadir_out = sys.argv[4]
+#number of iter
+iter_real = sys.argv[5]
 
 def extrap1d(interpolator):
     """
@@ -108,8 +110,8 @@ def createGWB(
     Npulsars = len(psr)
 
     # gw start and end times for entire data set
-    start = np.min([p.toas().min() * 86400 for p in psr])# - 86400
-    stop = np.max([p.toas().max() * 86400 for p in psr])#+ 86400
+    start = np.min([p.toas().min() * 86400 for p in psr]) - 86400
+    stop = np.max([p.toas().max() * 86400 for p in psr])+ 86400
 
     # duration of the signal
     dur = stop - start
@@ -153,7 +155,7 @@ def createGWB(
 
     # Define frequencies spanning from DC to Nyquist.
     # This is a vector spanning these frequencies in increments of 1/(dur*howml).
-    f = np.arange(1 / dur/2, 1 / (2 * dt), 1 / (dur * howml))
+    f = np.arange(1 / dur, 1 / (2 * dt), 1 / (dur * howml))
     f[0] = f[1]  # avoid divide by 0 warning
     Nf = len(f)
 
@@ -177,22 +179,23 @@ def createGWB(
 
     elif userSpec is not None:
 
-        freqs = userSpec[:, 0]
-        if len(userSpec[:, 0]) != len(freqs):
+        freqs = userSpec[:,0]
+        if len(userSpec[:,0]) != len(freqs):
             raise ValueError("Number of supplied spectral points does not match number of frequencies!")
         else:
-            fspec_in = interp.interp1d(np.log10(freqs), np.log10(userSpec[:, 1]), kind="linear")
-            fspec_ex = extrap1d(fspec_in)
-            hcf = np.sqrt(3. * H0**2 * 10**fspec_ex(np.log10(f)) / 2 / np.pi**2 / f**2)
+            #fspec_in = interp.interp1d(np.log10(freqs), np.log10(userSpec[:, 1]), kind="linear")
+            #fspec_ex = extrap1d(fspec_in)
+            #hcf = np.sqrt(3. * H0**2 * 10**fspec_ex(np.log10(f)) / 2 / np.pi**2 / f**2)
+            hcf = np.sqrt(3. * H0**2 * userSpec[:, 1] / 2 / np.pi**2 / freqs**2)
             print("userspec: ", hcf)
             print(np.log10(f))
-    plt.plot(hcf)
-    plt.xscale("log")
-    plt.yscale("log")
-    plt.show()
-    plt.clf()
+#    plt.plot(hcf)
+#    plt.xscale("log")
+#    plt.yscale("log")
+#    plt.show()
+#    plt.clf()
 
-    C = 1 / 96 / np.pi**2 * hcf**2 / f**3 * dur * howml
+    C = 1 / 96 / np.pi**2 * hcf**2 / freqs**3 * dur * howml
     
 
     # inject residuals in the frequency domain
@@ -279,8 +282,8 @@ def createFreq(
 
     # Define frequencies spanning from DC to Nyquist.
     # This is a vector spanning these frequencies in increments of 1/(dur*howml).
-    f = np.arange(1/ dur/2, 1 / (2 * dt), 1 / (dur * howml))
-#    f[0] = f[1]  # avoid divide by 0 warning
+    f = np.arange(1/ dur, 1 / (2 * dt), 1 / (dur * howml))
+    f[0] = f[1]  # avoid divide by 0 warning
     Nf = len(f)
     
     return f
@@ -298,7 +301,7 @@ for ii in range(0,Npsr):
 
     # years of observations>
     psr = LT.fakepulsar(parfile=parfiles[ii],
-            obstimes=np.arange(53000,53000+20*365.25,28.), toaerr=0.1)
+            obstimes=np.arange(53000,53000+10*365.25,28.), toaerr=0.1)
 
     # We now remove the computed residuals from the TOAs, obtaining (in effect) a perfect realization of the deterministic timing model. The pulsar parameters will have changed somewhat, so `make_ideal` calls `fit()` on the pulsar object.
     LT.make_ideal(psr)
@@ -314,12 +317,14 @@ for ii in range(0,Npsr):
 #make spectrum
 #define the spectrum
 
-#r = 10**(-13.1)
-#nt = 2.4
-#fstar = 7.7*1e-17
+r = 10**(-13.1)
+nt = 2.3
+fstar = 7.7*1e-17
 freq = createFreq(psrs, howml=howml)
-#spec = 6e-15*(r/0.032)*(freq/fstar)**nt
-spec = 1e-7 * (freq/const.fyr)*10
+#spec = 6e-9*(r/0.032)*(freq/fstar)**nt
+#spec = 1e-7 * (freq/const.fyr)**nt*10
+spec = 100*np.genfromtxt("exact.txt")
+np.savetxt("freq.txt", freq)
 
 #spec = 1e-50*np.ones(len(freq))
 #spec[2*howml] = 3e-5*np.ones(1)
@@ -348,7 +353,7 @@ createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=True)
 
 Psrs = []
 for ii in psrs:
-#    ii.fit()
+    ii.fit()
     psr = Tempo2Pulsar(ii)
     Psrs.append(psr)
     
@@ -436,7 +441,7 @@ burn = int(0.3*chain.shape[0])
 #                      plot_contours=False,fill_contours=False,
 #                      show_titles = True, use_math_text=True, verbose=True)
 
-fs = (np.arange(comp) + 1.5) / Tspan
+fs = (np.arange(comp) + 1) / Tspan
 parts = plt.violinplot(
     chain[burn:,:-4], positions=fs, widths=0.07*fs)
 plt.plot(freq, np.log10(spec))
@@ -449,6 +454,6 @@ plt.clf()
 #calculating 1-sigma uncertainties
 std_lst = np.std(chain[burn:,:-4], axis=0)
 mn_lst = np.mean(chain[burn:,:-4], axis=0)
-np.savetxt(datadir_out + "free_spec.txt", np.vstack((fs, mn_lst, std_lst)).T)
+np.savetxt(datadir_out + "free_spec_" + str(iter_real) + ".txt", np.vstack((fs, mn_lst, std_lst)).T)
 
 
