@@ -53,11 +53,14 @@ os.system("mkdir " + datadir_out)
 for j in psrs:
     plt.plot(j.residuals)
 plt.savefig(datadir_out + "res.png", dpi=300)
+plt.clf()
 
 for j in psrs:
     plt.plot(np.abs(np.fft.fft(j.residuals))[:int(len(np.fft.fft(j.residuals))/2)])
     plt.xscale("log")
-plt.savefig(datadir_out + "fft_spectrum.png", dpi=300)    
+    plt.yscale("log")
+plt.savefig(datadir_out + "fft_spectrum.png", dpi=300)
+plt.clf()
 
 #constructing free spectrum
 
@@ -76,7 +79,7 @@ s += white_signals.MeasurementNoise(efac=efac)
 
 # Finally, we add the common red noise, which is modeled as a Fourier series with 30 frequency components
 # The common red noise has a power-law PSD with spectral index of 4.33
-s += blocks.common_red_noise_block(psd='spectrum', prior='log-uniform', Tspan=Tspan,
+s += blocks.common_red_noise_block(psd='spectrum', prior='uniform', Tspan=2*Tspan,
                                    components=comp, name='gw_crn', orf = None)
 
 # We set up the PTA object using the signal we defined above and the pulsars
@@ -122,7 +125,7 @@ def run_sampler(pta, iter_num, outdir = ''):
 
 print(pta.params)
 
-run_sampler(pta, iter_num, "report_sim")
+run_sampler(pta, iter_num, datadir_out)
 
 chainname = 'chain_1'
 chain = np.loadtxt(datadir_out + chainname + '.txt')
@@ -138,6 +141,7 @@ burn = int(0.3*chain.shape[0])
 fs = (np.arange(comp) + 1) / Tspan
 parts = plt.violinplot(
     chain[burn:,:-4], positions=fs, widths=0.07*fs)
+plt.xscale("log")
 plt.savefig(datadir_out + "violin.png", dpi=300)
 
 #calculating 1-sigma uncertainties

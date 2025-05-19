@@ -11,8 +11,8 @@ import sys
 import scipy.interpolate as interp
 from enterprise.signals import gp_signals
 from enterprise_extensions import model_utils
-import blocks_new as blocks
-#from enterprise_extensions import blocks
+#import blocks_new as blocks
+from enterprise_extensions import blocks
 import dynesty
 from enterprise.signals import signal_base
 import enterprise.constants as const
@@ -35,6 +35,8 @@ iter_num = int(sys.argv[3])
 datadir_out = sys.argv[4]
 #number of iter
 iter_real = sys.argv[5]
+
+H0 = 3.*1e-18
 
 def extrap1d(interpolator):
     """
@@ -61,6 +63,7 @@ def extrap1d(interpolator):
         return np.array(list(map(pointwise, np.array(xs))))
 
     return ufunclike
+    
 
 def createGWB(
     psr,
@@ -76,7 +79,7 @@ def createGWB(
     power=1,
     userSpec=None,
     npts=600,
-    howml=1,
+    howml=10,
 ):
     """
     Function to create GW-induced residuals from a stochastic GWB as defined
@@ -93,7 +96,7 @@ def createGWB(
     :param f0: Frequency of spectrum turnover
     :param beta: Spectral index of power spectram for f << f0
     :param power: Fudge factor for flatness of spectrum turnover
-    :param userSpec: User-supplied Omega_gwb spectrum
+    :param userSpec: User-supplied characteristic strain spectrum
                      (first column is freqs, second is spectrum)
     :param npts: Number of points used in interpolation
     :param howml: Lowest frequency is 1/(howml * T)
@@ -111,7 +114,7 @@ def createGWB(
 
     # gw start and end times for entire data set
     start = np.min([p.toas().min() * 86400 for p in psr]) - 86400
-    stop = np.max([p.toas().max() * 86400 for p in psr])+ 86400
+    stop = np.max([p.toas().max() * 86400 for p in psr]) + 86400
 
     # duration of the signal
     dur = stop - start
@@ -155,7 +158,7 @@ def createGWB(
 
     # Define frequencies spanning from DC to Nyquist.
     # This is a vector spanning these frequencies in increments of 1/(dur*howml).
-    f = np.arange(1 / dur, 1 / (2 * dt), 1 / (dur * howml))
+    f = np.arange(0, 1 / (2 * dt), 1 / (dur * howml))
     f[0] = f[1]  # avoid divide by 0 warning
     Nf = len(f)
 
@@ -169,7 +172,6 @@ def createGWB(
 
     # strain amplitude
     if userSpec is None:
-
         f1yr = 1 / 3.16e7
         alpha = -0.5 * (gam - 3)
         hcf = Amp * (f / f1yr) ** (alpha)
@@ -178,25 +180,16 @@ def createGWB(
             hcf /= (1 + (f / f0) ** (power * si)) ** (1 / power)
 
     elif userSpec is not None:
-
-        freqs = userSpec[:,0]
-        if len(userSpec[:,0]) != len(freqs):
+        freqs = userSpec[:, 0]
+        if len(userSpec[:, 0]) != len(freqs):
             raise ValueError("Number of supplied spectral points does not match number of frequencies!")
         else:
-            #fspec_in = interp.interp1d(np.log10(freqs), np.log10(userSpec[:, 1]), kind="linear")
-            #fspec_ex = extrap1d(fspec_in)
-            #hcf = np.sqrt(3. * H0**2 * 10**fspec_ex(np.log10(f)) / 2 / np.pi**2 / f**2)
-            hcf = np.sqrt(3. * H0**2 * userSpec[:, 1] / 2 / np.pi**2 / freqs**2)
-            print("userspec: ", hcf)
-            print(np.log10(f))
-#    plt.plot(hcf)
-#    plt.xscale("log")
-#    plt.yscale("log")
-#    plt.show()
-#    plt.clf()
+            fspec_in = interp.interp1d(np.log10(freqs), np.log10(userSpec[:, 1]), kind="linear")
+            fspec_ex = extrap1d(fspec_in)
+            hcf = 10.0 ** fspec_ex(np.log10(f))
 
-    C = 1 / 96 / np.pi**2 * hcf**2 / freqs**3 * dur * howml
-    
+    hcf = np.sqrt(3. * H0**2 * hcf / 2 / np.pi**2 / freqs**2) #inject in Omega, converts to hcf
+    C = 1 / 96 / np.pi**2 * hcf**2 / f**3 * dur * howml
 
     # inject residuals in the frequency domain
     Res_f = np.dot(M, w)
@@ -225,6 +218,44 @@ def createGWB(
     for p in psr:
         p.stoas[:] += res_gw[ct] / 86400.0
         ct += 1
+
+
+def computeORFMatrix(psr):
+    """
+    Compute ORF matrix.
+
+    :param psr: List of pulsar object instances
+
+    :returns: Matrix that has the ORF values for every pulsar
+             pair with 2 on the diagonals to account for the
+             pulsar term.
+
+    """
+
+    # begin loop over all pulsar pairs and calculate ORF
+    npsr = len(psr)
+    ORF = N.zeros((npsr, npsr))
+    phati = N.zeros(3)
+    phatj = N.zeros(3)
+    ptheta = [N.pi / 2 - p["DECJ"].val for p in psr]
+    pphi = [p["RAJ"].val for p in psr]
+    for ll in range(0, npsr):
+        phati[0] = N.cos(pphi[ll]) * N.sin(ptheta[ll])
+        phati[1] = N.sin(pphi[ll]) * N.sin(ptheta[ll])
+        phati[2] = N.cos(ptheta[ll])
+
+        for kk in range(0, npsr):
+            phatj[0] = N.cos(pphi[kk]) * N.sin(ptheta[kk])
+            phatj[1] = N.sin(pphi[kk]) * N.sin(ptheta[kk])
+            phatj[2] = N.cos(ptheta[kk])
+
+            if ll != kk:
+                xip = (1.0 - N.sum(phati * phatj)) / 2.0
+                ORF[ll, kk] = 3.0 * (1.0 / 3.0 + xip * (N.log(xip) - 1.0 / 6.0))
+            else:
+                ORF[ll, kk] = 2.0
+
+    return ORF
 
         
 def createFreq(
@@ -288,14 +319,15 @@ def createFreq(
     
     return f
     
+    
 parfiles = sorted(glob.glob(datadir + '*.par'))
 Npsr = len(parfiles)
 print(parfiles)
 
 psrs = []
 Amp = 2e-14
-gamma = 13./3.
-howml = 10
+gamma = 2.3
+howml = 100
 
 for ii in range(0,Npsr):
 
@@ -308,9 +340,12 @@ for ii in range(0,Npsr):
 
     #Generate white noise
     LT.add_efac(psr,efac=1.0)
+    
+#    add_rednoise(psr, 2e-14, 2.1)
 
     # add to list
     psrs.append(psr)
+    
 
 #LT.createGWB(psrs, Amp=Amp, gam=gamma, howml=100)
 
@@ -321,19 +356,27 @@ r = 10**(-13.1)
 nt = 2.3
 fstar = 7.7*1e-17
 freq = createFreq(psrs, howml=howml)
+
+f1yr = 1 / 3.16e7
+alpha = -0.5 * (gamma - 3)
+spec = Amp * (freq / f1yr) ** (alpha)
+spec = 0*spec + 1e-50
+spec[2*howml] = 1e-12
+
 #spec = 6e-9*(r/0.032)*(freq/fstar)**nt
-#spec = 1e-7 * (freq/const.fyr)**nt*10
-spec = 100*np.genfromtxt("exact.txt")
-np.savetxt("freq.txt", freq)
+#spec = 1e-5 * (freq/const.fyr)**nt*10
+#spec = 100*np.genfromtxt("exact.txt")
+#np.savetxt("freq.txt", freq)
 
 #spec = 1e-50*np.ones(len(freq))
 #spec[2*howml] = 3e-5*np.ones(1)
+#spec[3*howml] = 3e-5*np.ones(1)
 userSpec = np.asarray([freq, spec]).T
 
 #userSpec is in Omega_GW units; freq, spec
 
 #createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec)
-createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=True)
+LT.createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=True)
 
 #for Psr in psrs:
 
@@ -435,19 +478,23 @@ chain = np.loadtxt(datadir_out + chainname + '.txt')
 
 burn = int(0.3*chain.shape[0])
 
+spec_sf = np.log10(np.sqrt(spec**2/12/np.pi**2/freq**3/Tspan))
+
 #corner.corner(chain[burn:,-4],
 #                      bins =30,
 #                      plot_datapoints=False, plot_density=True, 
 #                      plot_contours=False,fill_contours=False,
 #                      show_titles = True, use_math_text=True, verbose=True)
 
-fs = (np.arange(comp) + 1) / Tspan
+fs = (np.arange(comp)+1) / Tspan
 parts = plt.violinplot(
     chain[burn:,:-4], positions=fs, widths=0.07*fs)
-plt.plot(freq, np.log10(spec))
+plt.plot(freq, spec)
+plt.xlabel("Frequency, Hz", fontsize=12)
+plt.ylabel(r"$\Omega_{GW}$", fontsize=12)
 plt.xscale("log")
-plt.xlim(1e-9, 1e-7)
-plt.ylim(-10, -3)
+plt.xlim(2e-9, 1e-7)
+plt.ylim(-11, -3)
 plt.savefig(datadir_out + "violin.png", dpi=300)
 plt.clf()
 
