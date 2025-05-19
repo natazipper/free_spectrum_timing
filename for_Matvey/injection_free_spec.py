@@ -28,7 +28,6 @@ from enterprise.signals import gp_signals
 from enterprise_extensions import model_utils
 #import blocks_new as blocks
 from enterprise_extensions import blocks
-import dynesty
 from enterprise.signals import signal_base
 import enterprise.constants as const
 from enterprise.pulsar import Pulsar, Tempo2Pulsar
@@ -145,6 +144,7 @@ for ii in psrs:
     Psrs.append(psr)
     
 os.system("mkdir " + datadir_out)
+os.system("mkdir " + datadir_out + "final")
     
 # find the maximum time span to set GW frequency sampling
 Tspan = model_utils.get_tspan(Psrs)
@@ -168,12 +168,12 @@ s += blocks.common_red_noise_block(psd='spectrum', prior='log-uniform', Tspan=Ts
 # We set up the PTA object using the signal we defined above and the pulsars
 pta = signal_base.PTA([s(p) for p in Psrs])
 
-#for Psr in psrs:
+for Psr in psrs:
     
-#    Psr.fit()
-#    Psr.savepar("epta_sim_1/" + Psr.name + '.par')
-#    Psr.savetim("epta_sim_1/" + Psr.name + '.tim')
-#    T.purgetim("epta_sim_1/" + Psr.name + '.tim')
+    Psr.fit()
+    Psr.savepar(datadir_out + "final/" + Psr.name + '.par')
+    Psr.savetim(datadir_out + "final/" + Psr.name + '.tim')
+    T.purgetim(datadir_out + "final/" + Psr.name + '.tim')
 
 def run_sampler(pta, iter_num, outdir = ''):
 
@@ -242,3 +242,37 @@ plt.clf()
 std_lst = np.std(chain[burn:,:-4], axis=0)
 mn_lst = np.mean(chain[burn:,:-4], axis=0)
 np.savetxt(datadir_out + "free_spec.txt", np.vstack((fs, mn_lst, std_lst)).T)
+plt.clf()
+
+
+ostat = opt_stat.OptimalStatistic(psrs, pta=pta, orf='hd')
+
+
+chain = np.genfromtxt(datadir_out + chainname + ".txt")
+chain_r = chain[burn:, :-4]
+
+param_dict = {}
+param_dict[pta.param_names[0][:-2]] = chain_r[1002]
+
+
+for i,p in enumerate(pta.param_names):
+    param_dict[p] = chain_r[300][i]
+
+#print(param_dict)
+snr_list = []
+#freq_list = 10**np.arange(-9, -6, 0.1)
+freq_list = fs
+for ii in range(10):
+    snr_list = []
+    for j in range(len(freq_list)):
+        param_dict = {}
+        param_dict[pta.param_names[0][:-2]] = chain_r[8*ii]
+        for i,p in enumerate(pta.param_names):
+            param_dict[p] = chain_r[8*ii]
+        xi, rho, sig, OS, OS_sig = ostat.compute_os(params = param_dict, psd = "spectrum", fgw=freq_list[j])
+        snr_list = np.append(snr_list, OS/OS_sig)
+    plt.plot(fs, snr_list, color="black", alpha=0.3)
+#plt.yscale("log")
+plt.xlabel("Frequency, Hz")
+plt.ylabel("OS SNR") 
+plt.savefig(chaindir + "freq_res_os.png", dpi=300)
