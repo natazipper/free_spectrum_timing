@@ -11,9 +11,8 @@ import sys
 import scipy.interpolate as interp
 from enterprise.signals import gp_signals
 from enterprise_extensions import model_utils
-#import blocks_new as blocks
-from enterprise_extensions import blocks
-import dynesty
+import blocks_new as blocks
+#from enterprise_extensions import blocks
 from enterprise.signals import signal_base
 import enterprise.constants as const
 from enterprise.pulsar import Pulsar, Tempo2Pulsar
@@ -188,8 +187,8 @@ def createGWB(
             fspec_ex = extrap1d(fspec_in)
             hcf = 10.0 ** fspec_ex(np.log10(f))
 
-    hcf = np.sqrt(3. * H0**2 * hcf / 2 / np.pi**2 / freqs**2) #inject in Omega, converts to hcf
-    C = 1 / 96 / np.pi**2 * hcf**2 / f**3 * dur * howml
+    hcf_cr = np.sqrt(3. * H0**2 * hcf / 2 / np.pi**2) #inject in Omega, converts to hcf
+    C = 1 / 96 / np.pi**2 * hcf_cr**2 / f**5 * dur * howml
 
     # inject residuals in the frequency domain
     Res_f = np.dot(M, w)
@@ -357,14 +356,14 @@ nt = 2.3
 fstar = 7.7*1e-17
 freq = createFreq(psrs, howml=howml)
 
-f1yr = 1 / 3.16e7
-alpha = -0.5 * (gamma - 3)
-spec = Amp * (freq / f1yr) ** (alpha)
-spec = 0*spec + 1e-50
-spec[2*howml] = 1e-12
+#f1yr = 1 / 3.16e7
+#alpha = -0.5 * (gamma - 3)
+#spec = Amp * (freq / f1yr) ** (alpha)
+#spec = 0*spec + 1e-50
+#spec[2*howml] = 1e-12
 
 #spec = 6e-9*(r/0.032)*(freq/fstar)**nt
-#spec = 1e-5 * (freq/const.fyr)**nt*10
+spec = 1e-7 * (freq/const.fyr)**nt
 #spec = 100*np.genfromtxt("exact.txt")
 #np.savetxt("freq.txt", freq)
 
@@ -376,7 +375,15 @@ userSpec = np.asarray([freq, spec]).T
 #userSpec is in Omega_GW units; freq, spec
 
 #createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec)
-LT.createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=True)
+createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=True)
+
+#for Psr in psrs:
+    
+#    Psr.fit()
+#    Psr.savepar(datadir_out + Psr.name + '.par')
+#    Psr.savetim(datadir_out + Psr.name + '.tim')
+#    T.purgetim(datadir_out + Psr.name + '.tim')
+
 
 #for Psr in psrs:
 
@@ -386,17 +393,16 @@ LT.createGWB(psrs, Amp=Amp, gam=gamma, howml=howml, userSpec=userSpec, noCorr=Tr
     
     
 #parfiles = sorted(glob.glob(datadir + '*.par'))
-#timfiles = sorted(glob.glob(datadir + '*.tim'))
+#timfiles = sorted(glob.glob(datadir_out + '*.tim'))
 
-#psrs = []
+#Psrs = []
 #ephemeris = None
 #for p, t in zip(parfiles, timfiles):
-#    psr = Pulsar(p, t, ephem=ephemeris)
-#    psrs.append(psr)
+#    Psr = Pulsar(p, t, ephem=ephemeris)
+#    Psrs.append(psr)
 
 Psrs = []
 for ii in psrs:
-    ii.fit()
     psr = Tempo2Pulsar(ii)
     Psrs.append(psr)
     
@@ -404,6 +410,11 @@ os.system("mkdir " + datadir_out)
     
 # find the maximum time span to set GW frequency sampling
 Tspan = model_utils.get_tspan(Psrs)
+#start = np.min([p.toas().min() * 86400 for p in Psrs])# - 86400
+#stop = np.max([p.toas().max() * 86400 for p in Psrs])# + 86400
+
+# duration of the signal
+#Tspan = stop - start
 
 # Here we build the signal model
 # First we add the timing model
@@ -424,17 +435,10 @@ s += blocks.common_red_noise_block(psd='spectrum', prior='log-uniform', Tspan=Ts
 # We set up the PTA object using the signal we defined above and the pulsars
 pta = signal_base.PTA([s(p) for p in Psrs])
 
-#for Psr in psrs:
-    
-#    Psr.fit()
-#    Psr.savepar("epta_sim_1/" + Psr.name + '.par')
-#    Psr.savetim("epta_sim_1/" + Psr.name + '.tim')
-#    T.purgetim("epta_sim_1/" + Psr.name + '.tim')
-
 def run_sampler(pta, iter_num, outdir = ''):
 
     N = int(iter_num)                                    # number of samples
-    x0 = np.hstack(p.sample() for p in pta.params)  # initial parameter vector
+    x0 = np.hstack([p.sample() for p in pta.params])  # initial parameter vector
     ndim = len(x0)                                  # number of dimensions
     print('x0 =', x0)
 
@@ -478,6 +482,8 @@ chain = np.loadtxt(datadir_out + chainname + '.txt')
 
 burn = int(0.3*chain.shape[0])
 
+#hcf = np.sqrt(3. * H0**2 * spec / 2 / np.pi**2 / freq**2)
+
 spec_sf = np.log10(np.sqrt(spec**2/12/np.pi**2/freq**3/Tspan))
 
 #corner.corner(chain[burn:,-4],
@@ -489,14 +495,15 @@ spec_sf = np.log10(np.sqrt(spec**2/12/np.pi**2/freq**3/Tspan))
 fs = (np.arange(comp)+1) / Tspan
 parts = plt.violinplot(
     chain[burn:,:-4], positions=fs, widths=0.07*fs)
-plt.plot(freq, spec)
+plt.plot(freq, np.log10(spec))
 plt.xlabel("Frequency, Hz", fontsize=12)
 plt.ylabel(r"$\Omega_{GW}$", fontsize=12)
 plt.xscale("log")
 plt.xlim(2e-9, 1e-7)
-plt.ylim(-11, -3)
-plt.savefig(datadir_out + "violin.png", dpi=300)
-plt.clf()
+#plt.ylim(-11, -3)
+plt.show()
+#plt.savefig(datadir_out + "violin.png", dpi=300)
+#plt.clf()
 
 #calculating 1-sigma uncertainties
 std_lst = np.std(chain[burn:,:-4], axis=0)

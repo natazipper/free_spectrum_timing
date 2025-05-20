@@ -39,7 +39,7 @@ def free_spectrum(f, log10_rho=None):
     df = np.diff(np.concatenate((np.array([0]), f[::2])))
     hcf = np.sqrt(3. * H0**2 * np.repeat(10**np.array(log10_rho), 2) / 2 / np.pi**2 / f**2)
     return hcf**2 / 12 / np.pi**2 / f**3 * np.repeat(df, 2)
-#    return np.repeat(10 ** (2 * np.array(log10_rho)), 2)
+    #return np.repeat(10 ** (2 * np.array(log10_rho)), 2)
 
 
 @function
