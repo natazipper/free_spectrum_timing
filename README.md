@@ -7,7 +7,7 @@ All the output will be saved in datadir_out folder
 
 2. Generate tim files with injected Omega_gw with fully customised shape:
 
-
+python inject_omega.py --datadir epta_sim/ --comp 30 --iter_num 1e5 --iter_real 1 --datadir_out output_4/ --cust_spec cust_spec.txt
 
 Examples: 
 
