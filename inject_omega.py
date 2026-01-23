@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import scipy.interpolate as interp
+import argparse
 from enterprise.signals import gp_signals
 from enterprise_extensions import model_utils
 import blocks_new as blocks
@@ -24,16 +25,35 @@ import corner
 from enterprise_extensions import sampler as sp
 from PTMCMCSampler.PTMCMCSampler import PTSampler as ptmcmc
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--datadir', dest='datadir', type=str, help='Folder with the initial par/tim')
+parser.add_argument('--comp', dest='comp', type=int, help='Number of frequency components')
+parser.add_argument('--iter_num', dest='iter_num', type=float, help='Number of mcmc iterations')
+parser.add_argument('--datadir_out', dest='datadir_out', type=str, help='Output directory for files')
+parser.add_argument('--iter_real', dest='iter_real', type=float, help='Number of an iteration (to run the code)')
+parser.add_argument('--cust_spec', dest='cust_spec', type=str, help='File with the customised spectrum')
+parser.add_argument('--amp', dest='amp', type=float, default=1e-7, help='Amplitude of the spectrum in Omega_gw')
+parser.add_argument('--nt', dest='nt', type=float, default=2.3, help='Slope of the spectrum on Omega_gw')
+args = parser.parse_args()
+
 #input data directory
-datadir = sys.argv[1]
+datadir = args.datadir
 #number of frequency components
-comp = int(sys.argv[2])
+comp = args.comp
 #number of iteration in mcmc
-iter_num = int(sys.argv[3])
+iter_num = args.iter_num
 #output directory
-datadir_out = sys.argv[4]
+datadir_out = args.datadir_out
 #number of iter
-iter_real = sys.argv[5]
+iter_real = args.iter_real
+#customised spectrum
+add_spec = args.cust_spec
+#slope of the omega_gw
+nt = args.nt
+#amplitude of the omega_gw
+amp = args.amp
+
+print("Using nt={} and amp={} for the Omega_gw".format(nt, amp))
 
 H0 = 3.*1e-18
 
@@ -183,6 +203,7 @@ def createGWB(
         if len(userSpec[:, 0]) != len(freqs):
             raise ValueError("Number of supplied spectral points does not match number of frequencies!")
         else:
+            print(np.log10(userSpec[:, 1]))
             fspec_in = interp.interp1d(np.log10(freqs), np.log10(userSpec[:, 1]), kind="linear")
             fspec_ex = extrap1d(fspec_in)
             hcf = 10.0 ** fspec_ex(np.log10(f))
@@ -332,7 +353,7 @@ for ii in range(0,Npsr):
 
     # years of observations>
     psr = LT.fakepulsar(parfile=parfiles[ii],
-            obstimes=np.arange(53000,53000+10*365.25,28.), toaerr=0.1)
+            obstimes=np.arange(53000,53000+10*365.25,28.), toaerr=0.001)
 
     # We now remove the computed residuals from the TOAs, obtaining (in effect) a perfect realization of the deterministic timing model. The pulsar parameters will have changed somewhat, so `make_ideal` calls `fit()` on the pulsar object.
     LT.make_ideal(psr)
@@ -351,26 +372,24 @@ for ii in range(0,Npsr):
 #make spectrum
 #define the spectrum
 
-r = 10**(-13.1)
-nt = 2.3
-fstar = 7.7*1e-17
+#r = 10**(-13.1)
+nt = nt
+amp = amp
+#fstar = 7.7*1e-17
 freq = createFreq(psrs, howml=howml)
 
-#f1yr = 1 / 3.16e7
-#alpha = -0.5 * (gamma - 3)
-#spec = Amp * (freq / f1yr) ** (alpha)
-#spec = 0*spec + 1e-50
-#spec[2*howml] = 1e-12
+if add_spec is None:
+     spec = amp * (freq/const.fyr)**nt 
+     userSpec = np.asarray([freq, spec]).T
 
-#spec = 6e-9*(r/0.032)*(freq/fstar)**nt
-spec = 1e-7 * (freq/const.fyr)**nt
+else:
+    freq, spec = np.genfromtxt(add_spec)
 #spec = 100*np.genfromtxt("exact.txt")
 #np.savetxt("freq.txt", freq)
 
 #spec = 1e-50*np.ones(len(freq))
 #spec[2*howml] = 3e-5*np.ones(1)
 #spec[3*howml] = 3e-5*np.ones(1)
-userSpec = np.asarray([freq, spec]).T
 
 #userSpec is in Omega_GW units; freq, spec
 
@@ -407,6 +426,16 @@ for ii in psrs:
     Psrs.append(psr)
     
 os.system("mkdir " + datadir_out)
+
+#injected spectrum
+plt.plot(freq, spec)
+plt.xscale("log")
+plt.yscale("log")
+plt.xlabel("Frequency, Hz", fontsize=15)
+plt.ylabel("Spectrum Omega", fontsize=15)
+plt.title("Injected spectrum")
+plt.savefig(datadir_out + "inject.png", dpi=300)
+plt.clf()
     
 # find the maximum time span to set GW frequency sampling
 Tspan = model_utils.get_tspan(Psrs)
@@ -429,7 +458,7 @@ s += white_signals.MeasurementNoise(efac=efac)
 # Finally, we add the common red noise, which is modeled as a Fourier series with 30 frequency components
 # The common red noise has a power-law PSD with spectral index of 4.33
 s += blocks.common_red_noise_block(psd='spectrum', prior='log-uniform', Tspan=Tspan,
-                                   components=comp, name='gw_crn', orf = None)
+                                   components=comp, name='gw_crn', orf = 'crn')
 #s += blocks.red_noise_block(psd='spectrum', prior='log-uniform', components=30)
 
 # We set up the PTA object using the signal we defined above and the pulsars
@@ -438,7 +467,7 @@ pta = signal_base.PTA([s(p) for p in Psrs])
 def run_sampler(pta, iter_num, outdir = ''):
 
     N = int(iter_num)                                    # number of samples
-    x0 = np.hstack([p.sample() for p in pta.params])  # initial parameter vector
+    x0 = np.hstack([p.sample() for p in pta.params])
     ndim = len(x0)                                  # number of dimensions
     print('x0 =', x0)
 
@@ -496,13 +525,13 @@ fs = (np.arange(comp)+1) / Tspan
 parts = plt.violinplot(
     chain[burn:,:-4], positions=fs, widths=0.07*fs)
 plt.plot(freq, np.log10(spec))
-plt.xlabel("Frequency, Hz", fontsize=12)
-plt.ylabel(r"$\Omega_{GW}$", fontsize=12)
+plt.xlabel("Frequency, Hz", fontsize=15)
+plt.ylabel(r"$\Omega_{GW}$", fontsize=15)
 plt.xscale("log")
 plt.xlim(2e-9, 1e-7)
 #plt.ylim(-11, -3)
-plt.show()
-#plt.savefig(datadir_out + "violin.png", dpi=300)
+#plt.show()
+plt.savefig(datadir_out + "violin.png", dpi=300)
 #plt.clf()
 
 #calculating 1-sigma uncertainties
