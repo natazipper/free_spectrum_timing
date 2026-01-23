@@ -53,7 +53,10 @@ nt = args.nt
 #amplitude of the omega_gw
 amp = args.amp
 
-print("Using nt={} and amp={} for the Omega_gw".format(nt, amp))
+if add_spec:
+    print("Using customised Omega_gw")
+else:
+    print("Using nt={} and amp={} for the Omega_gw".format(nt, amp))
 
 H0 = 3.*1e-18
 
@@ -383,7 +386,10 @@ if add_spec is None:
      userSpec = np.asarray([freq, spec]).T
 
 else:
-    freq, spec = np.genfromtxt(add_spec)
+    freq_orig, spec_orig = np.genfromtxt(add_spec, unpack=True)
+    f_interp = interp.interp1d(freq_orig, spec_orig)
+    spec = f_interp(freq.astype(np.float64))
+    userSpec = np.asarray([freq, spec]).T
 #spec = 100*np.genfromtxt("exact.txt")
 #np.savetxt("freq.txt", freq)
 
