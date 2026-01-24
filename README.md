@@ -22,6 +22,8 @@ output_3/ --nt 3.4 --amp 1e-10
 
 output_2/ --nt 1.4 --amp 1e-9
 
+output_6/ --nt 3.4 --amp 5e-9
+
 output_4/
 amp = 1e-9 #amplitude at 1 year
 nt = 2.4
