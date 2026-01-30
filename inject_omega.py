@@ -390,6 +390,8 @@ else:
     f_interp = interp.interp1d(freq_orig, spec_orig)
     spec = f_interp(freq.astype(np.float64))
     userSpec = np.asarray([freq, spec]).T
+    
+print(userSpec)
 #spec = 100*np.genfromtxt("exact.txt")
 #np.savetxt("freq.txt", freq)
 

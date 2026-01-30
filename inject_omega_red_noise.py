@@ -142,6 +142,8 @@ def add_rednoise(psr, components=10, userSpec=None, tspan=None, seed=None):
     prior = norm
 
     y = np.sqrt(prior) * np.random.randn(size)
+    
+    psr.stoas[:] += (1.0 / day) * np.dot(F, y)
 
 
 def computeORFMatrix(psr):
